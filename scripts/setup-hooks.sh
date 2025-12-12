@@ -11,6 +11,9 @@ cat > "$PRE_PUSH" <<EOF
 
 echo "Running tests before push..."
 
+# Run go vet
+go vet ./...
+
 # Run all tests in the repository
 go test ./... -v
 
@@ -18,7 +21,7 @@ go test ./... -v
 RESULT=\$?
 
 if [ \$RESULT -ne 0 ]; then
-    echo "❌ Tests failed. Push aborted."
+    echo "Tests failed. Push aborted."
     exit 1
 fi
 
