@@ -91,8 +91,8 @@ func Verify(password, encodedHash string) (bool, error) {
 
 // DeriveKey derives a 32-byte encryption key from a password and a salt.
 func DeriveKey(password string, salt []byte) ([]byte, error) {
-	if len(salt) != 16 {
-		return nil, errors.New("salt must be exactly 16 bytes")
+	if len(salt) < 16 {
+		return nil, errors.New("salt must be at least 16 bytes")
 	}
 
 	key := argon2.IDKey([]byte(password), salt, time, memory, threads, keyLen)
