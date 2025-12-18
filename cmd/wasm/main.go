@@ -12,7 +12,6 @@ import (
 	"github.com/axosec/core/utils"
 )
 
-
 // bytesToJS converts Go []byte to JavaScript Uint8Array
 func bytesToJS(data []byte) js.Value {
 	dst := js.Global().Get("Uint8Array").New(len(data))
@@ -32,6 +31,14 @@ func jsToBytes(value js.Value) []byte {
 func returnError(err error) interface{} {
 	return map[string]interface{}{
 		"error": err.Error(),
+	}
+}
+
+// returnCipherResult returns a standard JS object: { "data": ..., "nonce": ... }
+func returnCipherResult(data, nonce []byte) interface{} {
+	return map[string]interface{}{
+		"data":  bytesToJS(data),
+		"nonce": bytesToJS(nonce),
 	}
 }
 
@@ -87,21 +94,22 @@ func VaultEncrypt(this js.Value, args []js.Value) interface{} {
 	data := jsToBytes(args[0])
 	key := jsToBytes(args[1])
 
-	encrypted, err := vault.Encrypt(data, key)
+	ciphertext, nonce, err := vault.Encrypt(data, key)
 	if err != nil {
 		return returnError(err)
 	}
-	return bytesToJS(encrypted)
+	return returnCipherResult(ciphertext, nonce)
 }
 
 func VaultDecrypt(this js.Value, args []js.Value) interface{} {
-	if len(args) != 2 {
-		return returnError(fmt.Errorf("expected 2 arguments: data, key"))
+	if len(args) != 3 {
+		return returnError(fmt.Errorf("expected 3 arguments: data, nonce, key"))
 	}
 	data := jsToBytes(args[0])
-	key := jsToBytes(args[1])
+	nonce := jsToBytes(args[1])
+	key := jsToBytes(args[2])
 
-	decrypted, err := vault.Decrypt(data, key)
+	decrypted, err := vault.Decrypt(data, nonce, key)
 	if err != nil {
 		return returnError(err)
 	}
@@ -135,26 +143,27 @@ func BoxSeal(this js.Value, args []js.Value) interface{} {
 		return returnError(err)
 	}
 
-	sealed, err := box.Seal(data, peerPub)
+	encBlob, nonce, err := box.Seal(data, peerPub)
 	if err != nil {
 		return returnError(err)
 	}
-	return bytesToJS(sealed)
+	return returnCipherResult(encBlob, nonce)
 }
 
 func BoxUnseal(this js.Value, args []js.Value) interface{} {
-	if len(args) != 2 {
-		return returnError(fmt.Errorf("expected 2 arguments: data, myPriv"))
+	if len(args) != 3 {
+		return returnError(fmt.Errorf("expected 3 arguments: data, nonce, myPriv"))
 	}
 	data := jsToBytes(args[0])
-	myPrivBytes := jsToBytes(args[1])
+	nonce := jsToBytes(args[1])
+	myPrivBytes := jsToBytes(args[2])
 
 	myPriv, err := box.LoadPrivateKey(myPrivBytes)
 	if err != nil {
 		return returnError(err)
 	}
 
-	plaintext, err := box.Unseal(data, myPriv.Private)
+	plaintext, err := box.Unseal(data, nonce, myPriv.Private)
 	if err != nil {
 		return returnError(err)
 	}
@@ -173,26 +182,27 @@ func BoxWrapKey(this js.Value, args []js.Value) interface{} {
 		return returnError(err)
 	}
 
-	wrapped, err := box.WrapKey(keyToShare, peerPub)
+	wrappedBlob, nonce, err := box.WrapKey(keyToShare, peerPub)
 	if err != nil {
 		return returnError(err)
 	}
-	return bytesToJS(wrapped)
+	return returnCipherResult(wrappedBlob, nonce)
 }
 
 func BoxUnwrapKey(this js.Value, args []js.Value) interface{} {
-	if len(args) != 2 {
-		return returnError(fmt.Errorf("expected 2 arguments: wrappedBlob, myPriv"))
+	if len(args) != 3 {
+		return returnError(fmt.Errorf("expected 3 arguments: wrappedBlob, nonce, myPriv"))
 	}
 	blob := jsToBytes(args[0])
-	myPrivBytes := jsToBytes(args[1])
+	nonce := jsToBytes(args[1])
+	myPrivBytes := jsToBytes(args[2])
 
 	myPriv, err := box.LoadPrivateKey(myPrivBytes)
 	if err != nil {
 		return returnError(err)
 	}
 
-	key, err := box.UnwrapKey(blob, myPriv.Private)
+	key, err := box.UnwrapKey(blob, nonce, myPriv.Private)
 	if err != nil {
 		return returnError(err)
 	}

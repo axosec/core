@@ -14,12 +14,12 @@ func TestVault_RoundTrip(t *testing.T) {
 
 	secret := []byte("This is a highly sensitive string.")
 
-	encrypted, err := vault.Encrypt(secret, key)
+	encrypted, nonce, err := vault.Encrypt(secret, key)
 	if err != nil {
 		t.Fatalf("Encryption failed: %v", err)
 	}
 
-	decrypted, err := vault.Decrypt(encrypted, key)
+	decrypted, err := vault.Decrypt(encrypted, nonce, key)
 	if err != nil {
 		t.Fatalf("Decryption failed: %v", err)
 	}
@@ -32,11 +32,11 @@ func TestVault_RoundTrip(t *testing.T) {
 func TestVault_TamperDetect(t *testing.T) {
 	key := make([]byte, vault.KeySize)
 	rand.Read(key)
-	encrypted, _ := vault.Encrypt([]byte("data"), key)
+	encrypted, nonce, _ := vault.Encrypt([]byte("data"), key)
 
 	encrypted[len(encrypted)-1] ^= 0xFF
 
-	_, err := vault.Decrypt(encrypted, key)
+	_, err := vault.Decrypt(encrypted, nonce, key)
 	if err == nil {
 		t.Fatal("Security Fail: Decrypted tampered data without error!")
 	}
@@ -46,11 +46,11 @@ func TestVault_WrongKey(t *testing.T) {
 	key1 := make([]byte, vault.KeySize)
 	key2 := make([]byte, vault.KeySize)
 	rand.Read(key1)
-	rand.Read(key2) 
+	rand.Read(key2)
 
-	encrypted, _ := vault.Encrypt([]byte("data"), key1)
+	encrypted, nonce, _ := vault.Encrypt([]byte("data"), key1)
 
-	_, err := vault.Decrypt(encrypted, key2)
+	_, err := vault.Decrypt(encrypted, nonce, key2)
 	if err == nil {
 		t.Fatal("Security Fail: Decrypted with wrong key!")
 	}
