@@ -3,11 +3,13 @@
 package main
 
 import (
+	"crypto/ed25519"
 	"fmt"
 	"syscall/js"
 
 	"github.com/axosec/core/crypto/box"
 	"github.com/axosec/core/crypto/hash"
+	"github.com/axosec/core/crypto/sign"
 	"github.com/axosec/core/crypto/vault"
 	"github.com/axosec/core/utils"
 )
@@ -222,6 +224,55 @@ func UtilGenerateSalt(this js.Value, args []js.Value) interface{} {
 	return bytesToJS(salt)
 }
 
+// Sign Bindings (Asymmetric)
+
+func SignGenerateKey(this js.Value, args []js.Value) interface{} {
+	kp, err := sign.GenerateKeyPair()
+	if err != nil {
+		return returnError(err)
+	}
+	priv, pub := kp.Bytes()
+	return map[string]interface{}{
+		"private": bytesToJS(priv),
+		"public":  bytesToJS(pub),
+	}
+}
+
+func SignMessage(this js.Value, args []js.Value) interface{} {
+	if len(args) != 2 {
+		return returnError(fmt.Errorf("expected 2 arguments: message, privateKey"))
+	}
+	message := jsToBytes(args[0])
+	privKeyBytes := jsToBytes(args[1])
+
+	if len(privKeyBytes) != ed25519.PrivateKeySize {
+		return returnError(fmt.Errorf("invalid private key size"))
+	}
+
+	signer := sign.NewSigner()
+	signature := signer.Sign(message, privKeyBytes)
+
+	return bytesToJS(signature)
+}
+
+func SignVerify(this js.Value, args []js.Value) interface{} {
+	if len(args) != 3 {
+		return returnError(fmt.Errorf("expected 3 arguments: message, signature, publicKey"))
+	}
+	message := jsToBytes(args[0])
+	signature := jsToBytes(args[1])
+	pubKeyBytes := jsToBytes(args[2])
+
+	if len(pubKeyBytes) != ed25519.PublicKeySize {
+		return returnError(fmt.Errorf("invalid public key size"))
+	}
+
+	signer := sign.NewSigner()
+	valid := signer.Verify(message, signature, pubKeyBytes)
+
+	return valid
+}
+
 func main() {
 	c := make(chan struct{}, 0)
 	fmt.Println("Axosec Core WASM Loaded")
@@ -240,6 +291,10 @@ func main() {
 	js.Global().Set("AxoBoxUnwrapKey", js.FuncOf(BoxUnwrapKey))
 
 	js.Global().Set("AxoUtilGenerateSalt", js.FuncOf(UtilGenerateSalt))
+
+	js.Global().Set("AxoSignGenerateKey", js.FuncOf(SignGenerateKey))
+	js.Global().Set("AxoSignMessage", js.FuncOf(SignMessage))
+	js.Global().Set("AxoSignVerify", js.FuncOf(SignVerify))
 
 	<-c
 }
